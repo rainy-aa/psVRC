@@ -51,7 +51,7 @@ function Find-VRChatDir {
             foreach ($line in $head) {
                 if ($line -match 'Arg:\s*(.+)[\\/]VRChat\.exe\s*$') {
                     $dir = $Matches[1].Trim()
-                    if (Test-Path (Join-Path $dir "start_protected_game.exe")) {
+                    if (Test-Path (Join-Path $dir "launch.exe")) {
                         return $dir
                     }
                 }
@@ -82,7 +82,7 @@ function Find-VRChatDir {
 
     foreach ($steamPath in $steamPaths) {
         $vrchatDir = Join-Path $steamPath "steamapps\common\VRChat"
-        if (Test-Path (Join-Path $vrchatDir "start_protected_game.exe")) {
+        if (Test-Path (Join-Path $vrchatDir "launch.exe")) {
             return $vrchatDir
         }
     }
@@ -106,7 +106,7 @@ function Prompt-VRChatPath {
     }
     else {
         Write-Host "  Could not auto-detect VRChat install folder." -ForegroundColor Yellow
-        Write-Host "  Enter the VRChat folder (containing start_protected_game.exe):" -ForegroundColor Gray
+        Write-Host "  Enter the VRChat folder (containing launch.exe):" -ForegroundColor Gray
     }
     Write-Host ""
     Write-Host "  > " -NoNewline -ForegroundColor Cyan
@@ -117,12 +117,12 @@ function Prompt-VRChatPath {
     }
     elseif (-not [string]::IsNullOrWhiteSpace($userInput)) {
         $trimmed = $userInput.Trim('"', "'", ' ')
-        if (Test-Path (Join-Path $trimmed "start_protected_game.exe")) {
+        if (Test-Path (Join-Path $trimmed "launch.exe")) {
             return $trimmed
         }
         else {
             Write-Host ""
-            Write-Host "  start_protected_game.exe not found in: $trimmed" -ForegroundColor Red
+            Write-Host "  launch.exe not found in: $trimmed" -ForegroundColor Red
             Write-Host "  Press any key to try again..." -ForegroundColor Gray
             [System.Console]::ReadKey($true) | Out-Null
             return Prompt-VRChatPath
@@ -256,31 +256,25 @@ function Launch-Profiles {
         return "VRChat path not set or invalid. Restart to reconfigure."
     }
 
-    $eacExe = Join-Path $vrchatDir "start_protected_game.exe"
-    if (-not (Test-Path $eacExe)) {
-        return "start_protected_game.exe not found in $vrchatDir"
+    $launchExe = Join-Path $vrchatDir "launch.exe"
+    if (-not (Test-Path $launchExe)) {
+        return "launch.exe not found in $vrchatDir"
     }
 
     $launchedNames = @()
 
     foreach ($p in $selected) {
         try {
-            if ($p.isVR) {
-                $steamUrl = "steam://rungameid/438100//--profile=$($p.id)"
-                if ($p.watchAvatars) {
-                    $steamUrl += " --watch-avatars --watch-worlds"
-                }
-                Start-Process $steamUrl
+            $launchArgs = @("--profile=$($p.id)")
+            if (-not $p.isVR) {
+                $launchArgs += "--no-vr"
             }
-            else {
-                $launchArgs = @("--no-vr", "--profile=$($p.id)")
-                if ($p.watchAvatars) {
-                    $launchArgs += "--watch-avatars"
-                    $launchArgs += "--watch-worlds"
-                }
-                $argString = $launchArgs -join ' '
-                Start-Process -FilePath $eacExe -WorkingDirectory $vrchatDir -ArgumentList $argString
+            if ($p.watchAvatars) {
+                $launchArgs += "--watch-avatars"
+                $launchArgs += "--watch-worlds"
             }
+            $argString = $launchArgs -join ' '
+            Start-Process -FilePath $launchExe -WorkingDirectory $vrchatDir -ArgumentList $argString
             $launchedNames += $p.name
         }
         catch {
@@ -319,8 +313,8 @@ foreach ($p in @($config.profiles)) {
     }
 }
 
-$eacCheck = if ($config.vrchatPath) { Join-Path $config.vrchatPath "start_protected_game.exe" } else { "" }
-if ([string]::IsNullOrWhiteSpace($config.vrchatPath) -or -not (Test-Path $eacCheck)) {
+$launchCheck = if ($config.vrchatPath) { Join-Path $config.vrchatPath "launch.exe" } else { "" }
+if ([string]::IsNullOrWhiteSpace($config.vrchatPath) -or -not (Test-Path $launchCheck)) {
     $config.vrchatPath = Prompt-VRChatPath
     Save-Config $config
 }
